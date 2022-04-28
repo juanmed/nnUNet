@@ -18,6 +18,7 @@ from nnunet.training.loss_functions.TopK_loss import TopKLoss
 from nnunet.training.loss_functions.crossentropy import RobustCrossEntropyLoss
 from nnunet.utilities.nd_softmax import softmax_helper
 from nnunet.utilities.tensor_utilities import sum_tensor
+from nnunet.training.loss_functions.focal_loss import FocalLoss
 from torch import nn
 import numpy as np
 
@@ -191,7 +192,47 @@ class SoftDiceLoss(nn.Module):
                 dc = dc[:, 1:]
         dc = dc.mean()
 
-        return -dc
+        return 1-dc
+
+
+class IoULoss(nn.Module):
+    def __init__(self, apply_nonlin=None, batch_dice=False, do_bg=True, smooth=1.):
+        """
+        """
+        super(IoULoss, self).__init__()
+
+        self.do_bg = do_bg
+        self.batch_dice = batch_dice
+        self.apply_nonlin = apply_nonlin
+        self.smooth = smooth
+
+    def forward(self, x, y, loss_mask=None):
+        shp_x = x.shape
+
+        if self.batch_dice:
+            axes = [0] + list(range(2, len(shp_x)))
+        else:
+            axes = list(range(2, len(shp_x)))
+
+        if self.apply_nonlin is not None:
+            x = self.apply_nonlin(x)
+
+        tp, fp, fn, _ = get_tp_fp_fn_tn(x, y, axes, loss_mask, False)
+
+        nominator = tp + self.smooth
+        denominator = tp + fp + fn + self.smooth
+
+        iou = nominator / (denominator + 1e-8)
+
+        if not self.do_bg:
+            if self.batch_dice:
+                iou = iou[1:]
+            else:
+                iou = iou[:, 1:]
+        iou = iou.mean()
+
+        return 1-iou
+
 
 
 class MCCLoss(nn.Module):
@@ -424,3 +465,63 @@ class DC_and_topk_loss(nn.Module):
         else:
             raise NotImplementedError("nah son") # reserved for other stuff (later?)
         return result
+
+
+class DC_and_Focal_loss(nn.Module):
+    def __init__(self, soft_dice_kwargs, focal_kwargs):
+        super(DC_and_Focal_loss, self).__init__()
+        self.dc = SoftDiceLoss(apply_nonlin=softmax_helper, **soft_dice_kwargs)
+        self.focal = FocalLoss(apply_nonlin=softmax_helper, **focal_kwargs)
+
+    def forward(self, net_output, target):
+        dc_loss = self.dc(net_output, target)
+        focal_loss = self.focal(net_output, target)
+
+        result = dc_loss + focal_loss
+        return result
+
+
+class DC_topk_ce_loss(nn.Module):
+    def __init__(self, soft_dice_kwargs, topk_kwargs, ce_kwargs, aggregate="sum", square_dice=False):
+        super(DC_topk_ce_loss, self).__init__()
+        self.aggregate = aggregate
+        self.topk = TopKLoss(**topk_kwargs)
+        self.ce = RobustCrossEntropyLoss(**ce_kwargs)
+        if not square_dice:
+            self.dc = SoftDiceLoss(apply_nonlin=softmax_helper, **soft_dice_kwargs)
+        else:
+            self.dc = SoftDiceLossSquared(apply_nonlin=softmax_helper, **soft_dice_kwargs)
+
+    def forward(self, net_output, target):
+        dc_loss = self.dc(net_output, target)
+        topk_loss = self.topk(net_output, target)
+        ce_loss = self.ce(net_output, target)
+
+        if self.aggregate == "sum":
+            result = dc_loss + topk_loss + ce_loss
+        else:
+            raise NotImplementedError("nah son") # reserved for other stuff (later?)
+        return result
+
+class DC_topk_focal_loss(nn.Module):
+    def __init__(self, soft_dice_kwargs, topk_kwargs, focal_kwargs, aggregate="sum", square_dice=False):
+        super(DC_topk_focal_loss, self).__init__()
+        self.aggregate = aggregate
+        self.topk = TopKLoss(**topk_kwargs)
+        self.focal = FocalLoss(apply_nonlin=softmax_helper, **focal_kwargs)
+        if not square_dice:
+            self.dc = SoftDiceLoss(apply_nonlin=softmax_helper, **soft_dice_kwargs)
+        else:
+            self.dc = SoftDiceLossSquared(apply_nonlin=softmax_helper, **soft_dice_kwargs)
+
+    def forward(self, net_output, target):
+        dc_loss = self.dc(net_output, target)
+        topk_loss = self.topk(net_output, target)
+        focal_loss = self.focal(net_output, target)
+
+        if self.aggregate == "sum":
+            result = dc_loss + topk_loss + focal_loss
+        else:
+            raise NotImplementedError("nah son") # reserved for other stuff (later?)
+        return result
+

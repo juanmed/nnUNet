@@ -1,25 +1,9 @@
-#    Copyright 2020 Division of Medical Image Computing, German Cancer Research Center (DKFZ), Heidelberg, Germany
-#
-#    Licensed under the Apache License, Version 2.0 (the "License");
-#    you may not use this file except in compliance with the License.
-#    You may obtain a copy of the License at
-#
-#        http://www.apache.org/licenses/LICENSE-2.0
-#
-#    Unless required by applicable law or agreed to in writing, software
-#    distributed under the License is distributed on an "AS IS" BASIS,
-#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#    See the License for the specific language governing permissions and
-#    limitations under the License.
-
 import numpy as np
 import torch
-from torch import nn
-from nnunet.utilities.nd_softmax import softmax_helper
-from nnunet.training.network_training.nnUNetTrainerV2 import nnUNetTrainerV2
+import torch.nn as nn
+import torch.nn.functional as F
 
 
-# taken from https://github.com/JunMa11/SegLoss/blob/master/test/nnUNetV2/loss_functions/focal_loss.py
 class FocalLoss(nn.Module):
     """
     copy from: https://github.com/Hsuxu/Loss_ToolBox-PyTorch/blob/master/FocalLoss/FocalLoss.py
@@ -61,7 +45,7 @@ class FocalLoss(nn.Module):
         target = torch.squeeze(target, 1)
         target = target.view(-1, 1)
         # print(logit.shape, target.shape)
-        #
+        # 
         alpha = self.alpha
 
         if alpha is None:
@@ -77,7 +61,7 @@ class FocalLoss(nn.Module):
 
         else:
             raise TypeError('Not support alpha type')
-
+        
         if alpha.device != logit.device:
             alpha = alpha.to(logit.device)
 
@@ -90,7 +74,7 @@ class FocalLoss(nn.Module):
 
         if self.smooth:
             one_hot_key = torch.clamp(
-                one_hot_key, self.smooth / (num_class - 1), 1.0 - self.smooth)
+                one_hot_key, self.smooth/(num_class-1), 1.0 - self.smooth)
         pt = (one_hot_key * logit).sum(1) + self.smooth
         logpt = pt.log()
 
@@ -106,8 +90,7 @@ class FocalLoss(nn.Module):
             loss = loss.sum()
         return loss
 
-
-# taken from https://github.com/JunMa11/SegLoss/blob/master/test/nnUNetV2/loss_functions/focal_loss.py
+    
 class FocalLossV2(nn.Module):
     """
     copy from: https://github.com/Hsuxu/Loss_ToolBox-PyTorch/blob/master/FocalLoss/FocalLoss.py
@@ -149,7 +132,7 @@ class FocalLossV2(nn.Module):
         target = torch.squeeze(target, 1)
         target = target.view(-1, 1)
         # print(logit.shape, target.shape)
-        #
+        # 
         alpha = self.alpha
 
         if alpha is None:
@@ -165,7 +148,7 @@ class FocalLossV2(nn.Module):
 
         else:
             raise TypeError('Not support alpha type')
-
+        
         if alpha.device != logit.device:
             alpha = alpha.to(logit.device)
 
@@ -178,7 +161,7 @@ class FocalLossV2(nn.Module):
 
         if self.smooth:
             one_hot_key = torch.clamp(
-                one_hot_key, self.smooth / (num_class - 1), 1.0 - self.smooth)
+                one_hot_key, self.smooth/(num_class-1), 1.0 - self.smooth)
         pt = (one_hot_key * logit).sum(1) + self.smooth
         logpt = pt.log()
 
