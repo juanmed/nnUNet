@@ -25,11 +25,11 @@ if __name__ == '__main__':
 
     # download dataset from https://www.kaggle.com/insaff/massachusetts-roads-dataset
     # extract the zip file, then set the following path according to your system:
-    base = '/media/fabian/data/road_segmentation_ideal'
+    base = '/home/fer/repos/nnUNet/stent_defect_v2_mvt/'
     # this folder should have the training and testing subfolders
 
     # now start the conversion to nnU-Net:
-    task_name = 'Task120_MassRoadsSeg'
+    task_name = 'Task502_stent'
     target_base = join(nnUNet_raw_data, task_name)
     target_imagesTr = join(target_base, "imagesTr")
     target_imagesTs = join(target_base, "imagesTs")
@@ -61,7 +61,7 @@ if __name__ == '__main__':
         # the labels are stored as 0: background, 255: road. We need to convert the 255 to 1 because nnU-Net expects
         # the labels to be consecutive integers. This can be achieved with setting a transform
         convert_2d_image_to_nifti(input_segmentation_file, output_seg_file, is_seg=True,
-                                  transform=lambda x: (x == 255).astype(int))
+                                  transform=None)
 
     # now do the same for the test set
     labels_dir_ts = join(base, 'testing', 'output')
@@ -77,11 +77,12 @@ if __name__ == '__main__':
 
         convert_2d_image_to_nifti(input_image_file, output_image_file, is_seg=False)
         convert_2d_image_to_nifti(input_segmentation_file, output_seg_file, is_seg=True,
-                                  transform=lambda x: (x == 255).astype(int))
+                                  transform=None) 
 
     # finally we can call the utility for generating a dataset.json
     generate_dataset_json(join(target_base, 'dataset.json'), target_imagesTr, target_imagesTs, ('Red', 'Green', 'Blue'),
-                          labels={0: 'background', 1: 'street'}, dataset_name=task_name, license='hands off!')
+                          labels={0: 'background', 1: 'burr', 2: 'dirt', 3: 'bite', 4: 'brake', 5: 'foreign_subtance', 6: 'surface'}, 
+                          dataset_name=task_name, license='hands off!')
 
     """
     once this is completed, you can use the dataset like any other nnU-Net dataset. Note that since this is a 2D
